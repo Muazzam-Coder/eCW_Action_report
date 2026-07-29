@@ -7,10 +7,11 @@ Automates report downloads from ECW, processes the exported `.xlsx` by filtering
 ## Files
 
 | File | Purpose |
-|---|---|
+|---|---|---|
 | `ecw_automation.py` | Selenium browser automation class |
 | `process_excel.py` | Reads downloaded `.xlsx`, filters/saves per-name reports |
 | `email_sender.py` | Sends filtered reports via SMTP with SSL |
+| `logger.py` | Logs all console output to `~/Documents/action_report/`, auto-cleans logs older than 7 days |
 | `main.py` | Entry point — wires login → download → process → email |
 | `.env` | Configuration (credentials, SMTP, email map) |
 
@@ -84,7 +85,7 @@ NAMES = ['Dimachkie', 'Enakuaa', 'Patel, Gunjan Silky']
 | Function | Description |
 |---|---|
 | `find_latest_download(download_dir)` | Returns the path of the most recently modified `.xlsx` in `~/Downloads` |
-| `export_filtered_excel(names, source_path)` | Reads the `.xlsx`, finds the sheet with a `Notes` column, filters rows for each name (case-insensitive), excludes rows where `Action Status` contains "Completed", drops the first 4 columns, strips time from date columns, saves each as `{name}.xlsx` in the current directory, then auto-calls `send_emails()` |
+| `export_filtered_excel(names, source_path)` | Reads the `.xlsx`, finds the sheet with a `Notes` column, filters rows for each name (case-insensitive), excludes rows where `Action Status` contains "Completed", drops the first 4 columns, strips time from date columns, saves each as `{name}.xlsx` in the current directory, calls `send_emails()`, then deletes the generated `.xlsx` files |
 
 ### Filtering logic
 
@@ -103,10 +104,40 @@ NAMES = ['Dimachkie', 'Enakuaa', 'Patel, Gunjan Silky']
 
 ---
 
+## `logger.py` — Logging
+
+| Function | Description |
+|---|---|
+| `setup_logging()` | Creates log directory `~/Documents/action_report/`, removes logs older than 7 days, creates a daily log file `action_report_YYYY-MM-DD.log`, and redirects all `print()` output to both the console and the log file with timestamps |
+
+### Log file location
+
+```
+~/Documents/action_report/action_report_2026-07-29.log
+```
+
+### Log retention
+
+- Only the last 7 days of logs are kept.
+- Older logs are automatically deleted when `setup_logging()` runs (at the start of `main.py`).
+
+### Log format example
+
+```
+2026-07-29 14:30:15,123 - Login Successful
+2026-07-29 14:30:16,789 - Switched to iframe
+2026-07-29 14:30:20,456 - Downloaded: 4.28 - Actions Report.xlsx
+```
+
+---
+
 ## Pipeline Flow
 
 ```
 main.py
+  │
+  ├── setup_logging()
+  │     └── Creates log file, cleans old logs (>7 days), captures all print()
   │
   ├── ECWAutomation.start()
   │     └── Launches Chrome → logs in → navigates to report
@@ -115,7 +146,7 @@ main.py
   │     └── Background thread polls ~/Downloads every 0.5s
   │
   ├── User actions trigger report download in the browser
-  │     └── File lands in ~/Downloads
+  │     └── File lands in ~/Downloads → logged
   │
   ├── on_complete fires with the file path
   │     └── export_filtered_excel(NAMES, source_path=filepath)
@@ -126,9 +157,10 @@ main.py
   │           │     ├── Drop first 4 columns
   │           │     ├── Strip time from date columns
   │           │     └── Save as {name}.xlsx
-  │           └── Calls send_emails(file_map)
-  │                 ├── Reads EMAIL_MAP from .env
-  │                 └── Sends each .xlsx to the matching email via SSL
+  │           ├── Calls send_emails(file_map)
+  │           │     ├── Reads EMAIL_MAP from .env
+  │           │     └── Sends each .xlsx to the matching email via SSL
+  │           └── Deletes all generated {name}.xlsx files
   │
   └── ECWAutomation.close()
         └── Stops monitor, quits browser

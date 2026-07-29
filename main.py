@@ -1,10 +1,12 @@
 from ecw_automation import ECWAutomation
 from process_excel import export_filtered_excel
+from logger import setup_logging
 import os
 from dotenv import load_dotenv
 from selenium.webdriver.common.by import By
 import time
 load_dotenv()
+setup_logging()
 
 NAMES = ['Dimachkie', 'Enakuaa', 'Patel, Gunjan Silky']
 

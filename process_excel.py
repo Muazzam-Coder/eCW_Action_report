@@ -66,5 +66,9 @@ def export_filtered_excel(names, source_path=None):
 
     if file_map:
         send_emails(file_map)
+        for name, path in file_map.items():
+            if os.path.isfile(path):
+                os.remove(path)
+                print(f"    Deleted {name}.xlsx")
 
     return file_map
